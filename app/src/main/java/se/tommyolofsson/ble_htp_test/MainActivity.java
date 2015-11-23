@@ -10,10 +10,13 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity implements BluetoothAdapter.LeScanCallback {
     private static final String TAG = "MainActivity";
     private static final int REQ_ENABLE_BT = 1;
+
+    private TextView tempText;
 
     private BluetoothAdapter mBTAdapter;
 
@@ -21,6 +24,8 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        tempText = (TextView) findViewById(R.id.temp);
 
         setupSensors();
     }
@@ -56,12 +61,15 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
     private void setupSensors() {
         final BluetoothManager blm = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         mBTAdapter = blm.getAdapter();
-
-        if (!mBTAdapter.isEnabled()) {
-            Intent enableBT = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBT, REQ_ENABLE_BT);
+        if (mBTAdapter == null) {
+            tempText.setText("BT not available.");
         } else {
-            startScan();
+            if (!mBTAdapter.isEnabled()) {
+                Intent enableBT = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableBT, REQ_ENABLE_BT);
+            } else {
+                startScan();
+            }
         }
     }
 
@@ -82,6 +90,7 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
                 device.getType(), device.getName(), device.getAddress(),
                 byteArrayToString(scanRecord)));
 
+        // TODO: Extract.
         int pos = 0;
         while (true) {
             int len = scanRecord[pos] & 0xff;
@@ -100,23 +109,7 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
                     byte[] temp = java.util.Arrays.copyOfRange(data, 3, data.length);
                     Log.w(TAG, "temp_raw: " + byteArrayToString(temp));
                     int t =  ((temp[0] & 0xff) << 8) | ((temp[1] & 0xff) << 0);
-                    Log.w(TAG, "temp: " + t);
-                    // 4377 34.1
-                    // 4390 34.2
-                    // 4416 34.5
-                    // 4441 34.6
-                    // 4454 34.7
-                    // 4467 34.8
-                    // 4480 35.0
-                    // 4505, 35.1
-                    // 4518 35.1
-                    // 4121 32.1
-                    // 4070 31.7
-                    // 4480 35,0
-                    // 4505 35.1
-                    // 4428 34.5
-                    // 4646 36.2
-                    // 4608 36.0
+                    tempText.setText(String.format("Current temperature: %0.2f", t / 128.0));
                 }
             } else if (type == 0x08) {
                 Log.w(TAG, byteArrayToString(data));
