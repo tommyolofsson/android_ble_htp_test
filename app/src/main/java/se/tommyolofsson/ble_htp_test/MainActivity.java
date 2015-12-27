@@ -13,26 +13,40 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
+import com.androidplot.util.PixelUtils;
+import com.androidplot.xy.SimpleXYSeries;
+import com.androidplot.xy.XYSeries;
+import com.androidplot.xy.*;
+
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final int REQ_ENABLE_BT = 1;
 
     private TextView tempText;
+    private XYPlot plot;
     private BluetoothAdapter mBTAdapter;
     private BroadcastReceiver tempRecv;
+    private ArrayList<Number> tempReadings;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Connect resources.
         tempText = (TextView) findViewById(R.id.temp);
+        plot = (XYPlot) findViewById(R.id.plot);
+
+        tempReadings = new ArrayList<Number>();
         tempRecv = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 double t = intent.getDoubleExtra(BTTempService.BROADCAST_SINGLE_VAL, -1.0);
                 tempText.setText(String.format("%f", t));
+                tempReadings.add(t);
+                plotData();
             }
         };
         setupSensors();
@@ -87,5 +101,19 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter ifilt = new IntentFilter();
         ifilt.addAction(BTTempService.BROADCAST_SINGLE);
         registerReceiver(tempRecv, ifilt);
+    }
+
+    private void plotData() {
+        Log.d(TAG, "Updating plot");
+        XYSeries series1 = new SimpleXYSeries(tempReadings,
+            SimpleXYSeries.ArrayFormat.Y_VALS_ONLY, "Sensor 1");
+        LineAndPointFormatter series1Format = new LineAndPointFormatter();
+        //series1Format.setPointLabelFormatter(new PointLabelFormatter());
+        series1Format.configure(getApplicationContext(),
+                R.xml.line_point_formatter_with_labels);
+
+        plot.clear();
+        plot.addSeries(series1, series1Format);
+        plot.redraw();
     }
 }
