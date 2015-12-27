@@ -98,25 +98,21 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
                 break;
             int type = scanRecord[pos+1] & 0xff;
             Log.w(TAG, String.format("Len: %d, Type: %02x", len, type));
-            byte[] data = java.util.Arrays.copyOfRange(scanRecord, pos+2, pos+len+1);
-
-            if (type == 0xFF) {
-                Log.w(TAG, byteArrayToString(data));
-                if (((data[0] & 0xff) == 0x40) &&
-                        ((data[1] & 0xff) == 0x0c) &&
-                        ((data[2] & 0xff) == 0x029))
-                {
-                    byte[] temp = java.util.Arrays.copyOfRange(data, 3, data.length);
-                    Log.w(TAG, "temp_raw: " + byteArrayToString(temp));
-                    int t =  ((temp[0] & 0xff) << 8) | ((temp[1] & 0xff) << 0);
-                    tempText.setText(String.format("Current temperature: %0.2f", t / 128.0));
+            if (type == 0xff) {
+                if (((scanRecord[pos + 2] & 0xff) == 0x40)) {
+                    // Format:
+                    // 0: Length (6)
+                    // 1: Type (0xff)
+                    // 2: 0x40 -- Temperature reading packet id?
+                    // 3-4: -- Varies btw. sensors. Constant in time(?)
+                    // 5-6: Temperature as MSB int in 1/128 deg.
+                    int tfrac = ((scanRecord[pos+5] & 0xff) << 8) | ((scanRecord[pos+6] & 0xff) << 0);
+                    double t = tfrac / 128.0;
+                    tempText.setText(String.format("Current temperature: %f", t));
                 }
             } else if (type == 0x08) {
-                Log.w(TAG, byteArrayToString(data));
             } else if (type == 0x02) {
-
             }
-
             pos += len + 1;
         }
     }
