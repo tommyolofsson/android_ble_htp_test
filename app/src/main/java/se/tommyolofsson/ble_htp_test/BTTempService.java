@@ -75,6 +75,8 @@ public class BTTempService extends Service implements BluetoothAdapter.LeScanCal
                     // 2: 0x40 -- Temperature reading packet id?
                     // 3-4: -- Varies btw. sensors. Constant in time(?)
                     // 5-6: Temperature as MSB int in 1/128 deg.
+                    // Received readings seems limited to just outside (30, 45).
+
                     int tfrac = ((scanRecord[pos+5] & 0xff) << 8) | ((scanRecord[pos+6] & 0xff) << 0);
                     temp = tfrac / 128.0;
 
