@@ -3,8 +3,10 @@ package se.tommyolofsson.ble_htp_test;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -12,13 +14,13 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
 
-public class MainActivity extends AppCompatActivity implements BluetoothAdapter.LeScanCallback {
+public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final int REQ_ENABLE_BT = 1;
 
     private TextView tempText;
-
     private BluetoothAdapter mBTAdapter;
+    private BroadcastReceiver tempRecv;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,7 +28,13 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
         setContentView(R.layout.activity_main);
 
         tempText = (TextView) findViewById(R.id.temp);
-
+        tempRecv = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                double t = intent.getDoubleExtra(BTTempService.BROADCAST_SINGLE_VAL, -1.0);
+                tempText.setText(String.format("%f", t));
+            }
+        };
         setupSensors();
     }
 
@@ -52,7 +60,7 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
         return super.onOptionsItemSelected(item);
     }
 
-    protected void onAvtivityResult(int req, int res, Intent data) {
+    protected void onActivityResult(int req, int res, Intent data) {
         if (req == REQ_ENABLE_BT) {
             startScan();
         }
@@ -74,46 +82,10 @@ public class MainActivity extends AppCompatActivity implements BluetoothAdapter.
     }
 
     private void startScan() {
-        mBTAdapter.startLeScan(this);
-    }
-
-    private String byteArrayToString(byte[] a) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < a.length; i++)
-            sb.append(String.format("0x%02x ", a[i]));
-        return sb.toString().trim();
-    }
-
-    @Override
-    public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-        Log.w(TAG, String.format("Found %s device: %s, %s: %s",
-                device.getType(), device.getName(), device.getAddress(),
-                byteArrayToString(scanRecord)));
-
-        // TODO: Extract.
-        int pos = 0;
-        while (true) {
-            int len = scanRecord[pos] & 0xff;
-            if (len <= 0)
-                break;
-            int type = scanRecord[pos+1] & 0xff;
-            Log.w(TAG, String.format("Len: %d, Type: %02x", len, type));
-            if (type == 0xff) {
-                if (((scanRecord[pos + 2] & 0xff) == 0x40)) {
-                    // Format:
-                    // 0: Length (6)
-                    // 1: Type (0xff)
-                    // 2: 0x40 -- Temperature reading packet id?
-                    // 3-4: -- Varies btw. sensors. Constant in time(?)
-                    // 5-6: Temperature as MSB int in 1/128 deg.
-                    int tfrac = ((scanRecord[pos+5] & 0xff) << 8) | ((scanRecord[pos+6] & 0xff) << 0);
-                    double t = tfrac / 128.0;
-                    tempText.setText(String.format("Current temperature: %f", t));
-                }
-            } else if (type == 0x08) {
-            } else if (type == 0x02) {
-            }
-            pos += len + 1;
-        }
+        Intent startIntent = new Intent(this, BTTempService.class);
+        startService(startIntent);
+        IntentFilter ifilt = new IntentFilter();
+        ifilt.addAction(BTTempService.BROADCAST_SINGLE);
+        registerReceiver(tempRecv, ifilt);
     }
 }
