@@ -15,6 +15,10 @@ public class BTTempService extends Service implements BluetoothAdapter.LeScanCal
 
     public static final String BROADCAST_SINGLE = "se.tommyolofsson.ble_htp_test.BTTempService.BROADCAST_SINGLE";
     public static final String BROADCAST_SINGLE_VAL = "se.tommyolofsson.ble_htp_test.BTTempService.BROADCAST_SINGLE.VAL";
+    public static final String DEVICE_ADDRESS = "se.tommyolofsson.ble_htp_test.BTTempService.DEVICE_ADDRESS";
+
+    private static final String NEWCO_SENSOR_NAME = "190CFFFF";
+    private static final String LEMON_SENSOR_NAME = "PH";
 
     private BluetoothAdapter mBTAdapter;
     private double temp;
@@ -54,18 +58,21 @@ public class BTTempService extends Service implements BluetoothAdapter.LeScanCal
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
-    @Override
-    public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-        Log.d(TAG, String.format("Found %s device: %s, %s: %s",
-                device.getType(), device.getName(), device.getAddress(),
-                Util.byteArrayToString(scanRecord)));
+    private double parseNewCoTemp(byte[] scanRecord) {
+        Log.d(TAG, String.format("parsingNewCoTemp: %02x %02x", scanRecord[17], scanRecord[18]));
+        int num = ((scanRecord[18] & 0xff) << 8) | ((scanRecord[17] & 0xff) << 0);
+        double temp = num / 100.0;
+        return temp;
+    }
 
+    private double parsePHTemp(byte[] scanRecord) {
         int pos = 0;
+        double temp = 0.0;
         while (true) {
             int len = scanRecord[pos] & 0xff;
             if (len <= 0)
                 break;
-            int type = scanRecord[pos+1] & 0xff;
+            int type = scanRecord[pos + 1] & 0xff;
             Log.w(TAG, String.format("Len: %d, Type: %02x", len, type));
             if (type == 0xff) {
                 if (((scanRecord[pos + 2] & 0xff) == 0x40)) {
@@ -77,18 +84,34 @@ public class BTTempService extends Service implements BluetoothAdapter.LeScanCal
                     // 5-6: Temperature as MSB int in 1/128 deg.
                     // Received readings seems limited to just outside (30, 45).
 
-                    int tfrac = ((scanRecord[pos+5] & 0xff) << 8) | ((scanRecord[pos+6] & 0xff) << 0);
+                    int tfrac = ((scanRecord[pos + 5] & 0xff) << 8) | ((scanRecord[pos + 6] & 0xff) << 0);
                     temp = tfrac / 128.0;
-
-                    Intent bc = new Intent(BROADCAST_SINGLE)
-                            .putExtra(BROADCAST_SINGLE_VAL, temp);
-                    //LocalBroadcastManager.getInstance(this).sendBroadcast(bc);
-                    sendBroadcast(bc);
                 }
             } else if (type == 0x08) {
             } else if (type == 0x02) {
             }
             pos += len + 1;
         }
+        return temp;
+    }
+
+    @Override
+    public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+        Log.d(TAG, String.format("Found %s device: %s, %s: %s",
+                device.getType(), device.getName(), device.getAddress(),
+                Util.byteArrayToString(scanRecord)));
+        double temp = 0;
+        String deviceName = device.getName();
+        if (NEWCO_SENSOR_NAME.equals(deviceName)) {
+            temp = parseNewCoTemp(scanRecord);
+        } else if (LEMON_SENSOR_NAME.equals(deviceName)) {
+            temp = parsePHTemp(scanRecord);
+        } else {
+            return;
+        }
+        Intent bc = new Intent(BROADCAST_SINGLE)
+                .putExtra(BROADCAST_SINGLE_VAL, temp);
+        bc.putExtra(DEVICE_ADDRESS, device.getAddress());
+        sendBroadcast(bc);
     }
 }
